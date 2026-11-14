@@ -1,0 +1,56 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Auto-organize flat uploaded files into Flutter structure
+        run: |
+          mkdir -p lib/constants lib/models lib/services lib/pages
+          if [ -f "main.dart" ]; then mv -f main.dart lib/main.dart; fi
+          if [ -f "schedule_constants.dart" ]; then mv -f schedule_constants.dart lib/constants/schedule_constants.dart; fi
+          if [ -f "course.dart" ]; then mv -f course.dart lib/models/course.dart; fi
+          if [ -f "database_service.dart" ]; then mv -f database_service.dart lib/services/database_service.dart; fi
+          if [ -f "timetable_page.dart" ]; then mv -f timetable_page.dart lib/pages/timetable_page.dart; fi
+          if [ -f "smart_import_page.dart" ]; then mv -f smart_import_page.dart lib/pages/smart_import_page.dart; fi
+          if [ -f "settings_page.dart" ]; then mv -f settings_page.dart lib/pages/settings_page.dart; fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Generate Android Platform Wrapper
+        run: |
+          cp lib/main.dart /tmp/main_backup.dart
+          cp pubspec.yaml /tmp/pubspec_backup.yaml
+          flutter create --platforms=android --org com.example.timetable .
+          cp /tmp/main_backup.dart lib/main.dart
+          cp /tmp/pubspec_backup.yaml pubspec.yaml
+          rm -rf test
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: college-timetable-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
